@@ -27,4 +27,4 @@ pretty: venv
 	source .venv/bin/activate; python -m black $(project_name)
 
 test: venv
-	source .venv/bin/activate; python -m pytest#
+	source .venv/bin/activate; python -m pytest
