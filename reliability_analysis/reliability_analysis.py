@@ -50,6 +50,7 @@ def check_system(r, s, lattice):
             return 0
     return 1
 
+
 def simulate(m, n, r, s, end):
     # Cost parameters
     cr = 0.5
