@@ -12,8 +12,8 @@ failure_rate = 0.1  # failure rate of each component
 components = np.ones((m, n), dtype=int)
 
 # Define repair kit parameters
-replacement_parts = {'roller': 10, 'bearing': 20, 'belt': 2}
-tools = ['screwdriver', 'wrench', 'hammer']
+replacement_parts = {"roller": 10, "bearing": 20, "belt": 2}
+tools = ["screwdriver", "wrench", "hammer"]
 
 
 # Define repair function
@@ -46,9 +46,11 @@ while time < total_time:
     # Check for consecutive failures in rows and columns
     for i in range(m):
         for j in range(n - r + 1):
-            if np.sum(components[i, j:j + r]) == r:
+            if np.sum(components[i, j : j + r]) == r:
                 # Repair failed components using repair kit
-                repair_time, effectiveness = repair_component(i, j, {'parts': replacement_parts, 'tools': tools})
+                repair_time, effectiveness = repair_component(
+                    i, j, {"parts": replacement_parts, "tools": tools}
+                )
                 time += repair_time
                 if np.random.random() < effectiveness:
                     # Repair successful
@@ -56,9 +58,11 @@ while time < total_time:
 
     for j in range(n):
         for i in range(m - s + 1):
-            if np.sum(components[i:i + s, j]) == s:
+            if np.sum(components[i : i + s, j]) == s:
                 # Repair failed components using repair kit
-                repair_time, effectiveness = repair_component(i, j, {'parts': replacement_parts, 'tools': tools})
+                repair_time, effectiveness = repair_component(
+                    i, j, {"parts": replacement_parts, "tools": tools}
+                )
                 time += repair_time
                 if np.random.random() < effectiveness:
                     # Repair successful
