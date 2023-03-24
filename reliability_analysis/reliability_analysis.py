@@ -44,26 +44,35 @@ def check_system(r, s, lattice):
             else:
                 flag = 0
         transformed_matrix.append(transformed_row)
-    #Scan transformed matrix to see if it's broken
+    #Scan transformed matrix to see if it's broken, hopping over rows' end
     for row in range(m + r - 1):
         if (set(transformed_matrix[row % m]) & set(transformed_matrix[(row + 1) % m])):
             return 0
     return 1
 
-def simulate(m, n, r, s):
-    # Simulation end
-    end = 50
+
+def simulate(m, n, r, s, end):
+    # Cost parameters
+    cr = 0.5
+    cm = 0.25
+    # Initiate clock, counters, and a false failure indicator
+    t = 0
+    fail_flag = 0
+    TTF = end
+    TBF = 0
+    TBF_history = []
+    total_downtime = 0
+    repair_costs = 0
+    maintenance_costs = 0
     # Initiate queue of failures and repairs
     event_queue = PriorityQueue()
-    # Create latice and fill with nodes, record initial failures
+    # Create latice and fill with nodes, record planned failures
     lattice = np.empty((m, n), dtype=object)
     for i in range(m):
         for j in range(n):
             lattice[i][j] = Node()
             event_queue.put((lattice[i][j].getNext(), True, m * i + j))
-    # Initiate system status history
-    t = 0
-    system_history = []
+            maintenance_costs += round(cm * lattice[i][j].getNext(), 6)
     # Simulation
     while (t < end):
         # Get features of next event
@@ -73,25 +82,67 @@ def simulate(m, n, r, s):
         next_node = next_event[2]
         i = int(next_node / m)
         j = next_node % n
-        # If it's a new period, all nodes of previous one are updated
-        # and system check commences before new updates
-        if (t != math.ceil(next_time)):
-            system_status = check_system(r, s, lattice)
-            # Fill in system status for each period without events
-            for k in range(min(math.ceil(next_time), end) - t):
-                system_history.append(system_status)
+        # Update node and event queue (making event happen)
+        lattice[i][j].update(not next_status, next_time)
+        event_queue.put((lattice[i][j].getNext(), lattice[i][j].getStatus(), m * i + j))
+        # Update costs depending on node event
+        if lattice[i][j].getStatus():
+            maintenance_costs += round(cm * lattice[i][j].getNext(), 6)
+        else:
+            repair_costs += cr
+        # Check system status and update counters
+        system_status = check_system(r, s, lattice)
+        if system_status == 0 and TTF == end:
+            TTF = next_time
+        if system_status == 0:
+            if fail_flag:
+                total_downtime += (next_time - t)
+            else:
+                TBF += (next_time - t)
+                TBF_history.append(TBF)
+                fail_flag = 1
+                TBF = 0
+        else:
+            if fail_flag:
+                total_downtime += (next_time - t)
+                fail_flag = 0
+            else:
+                TBF += (next_time - t)
         # Advance clock
         t = min(math.ceil(next_time), end)
-        # Update node and event queue
-        lattice[i][j].update(not next_status, t)
-        event_queue.put((lattice[i][j].getNext(), lattice[i][j].getStatus(), m * i + j))
-    return system_history
+    # If the system never failed, TBF and TTF are set to the simulated time span
+    if not TBF_history:
+        TBF_history.append(end)
+    return total_downtime / end, TTF, np.mean(TBF_history), repair_costs, maintenance_costs
 
 def main():
-    system_history = simulate(3, 3, 2, 2)
-    return system_history
+    # Number of periods to simulate and metrics
+    end = 50
+    reliability = []
+    MTTF = []
+    MTBF = []
+    avg_r = []
+    avg_m = []
+    # 10000 simulation runs
+    for i in range(100):
+        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(3, 3, 2, 2, end)
+        reliability.append(downtime)
+        MTTF.append(TTF)
+        MTBF.append(TBF)
+        avg_r.append(repair_costs)
+        avg_m.append(maintenance_costs)
+    reliability = 1 - np.mean(reliability)
+    MTTF = np.mean(MTTF)
+    MTBF = np.mean(MTBF)
+    avg_r = round(np.mean(avg_r), 6)
+    avg_m = round(np.mean(avg_m), 6)
+    breakeven_profit = round((avg_r + avg_m) / (reliability * end), 6)
+    print(breakeven_profit)
+    print(reliability)
+    print(MTTF)
+    print(MTBF)
+    print(avg_r)
+    print(avg_m)
 
 if __name__ == "__main__":
-    system_history = main()
-    print(system_history)
-    print(len(system_history))
+    main()
