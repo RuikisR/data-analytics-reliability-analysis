@@ -111,7 +111,7 @@ def simulate(m, n, r, s, end, lam, mu):
             else:
                 TBF += next_time - t
         # Advance clock
-        t = min(math.ceil(next_time), end)
+        t = min(next_time, end)
     # If the system never failed, TBF and TTF are set to the simulated time span
     if not TBF_history:
         TBF_history.append(end)
