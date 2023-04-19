@@ -126,13 +126,13 @@ def simulate(m, n, r, s, end, lam, mu):
 
 def main():
     # Load Simulation Settings
-    with open("config.yaml", 'r') as f:
+    with open("../config.yaml", 'r') as f:
         config = yaml.safe_load(f)
     print(config)
     for i, (batch_name, batch) in enumerate(config.items()):
         print(f"Simulating Batch {i + 1} of {len(config)} - {batch_name}")
         for module_name in batch['extension_modules']:
-            spec = importlib.util.spec_from_file_location(module_name, os.path.join("reliability_analysis", "extensions", module_name, module_name+".py"))
+            spec = importlib.util.spec_from_file_location(module_name, os.path.join("../reliability_analysis", "extensions", module_name, module_name+".py"))
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
