@@ -178,6 +178,7 @@ def main():
         print(avg_m)
         for module in batch['extension_modules']:
             del sys.modules[module]
+            
     plot1 = plt.plot(END, total_breakeven_profit)
     plt.xlabel('System Time Span'); plt.ylabel('breakeven_profit')
     plt.show()
