@@ -6,7 +6,7 @@ import importlib
 import sys
 import os
 
-SMART_REPAIR = True
+SMART_REPAIR = False
 
 
 class Node:
@@ -48,7 +48,6 @@ def get_system_status(r, s, lattice, smart=SMART_REPAIR):
     n = len(lattice[0])
     # Building transformed matrix
     transformed_matrix = np.zeros((m - r + 1, n - s + 1))
-    flag = 0
     for i in range(len(transformed_matrix)):
         for j in range(len(transformed_matrix[0])):
             # Scan the lattice for dangerous rows, hopping over columns' end
@@ -65,9 +64,23 @@ def get_system_status(r, s, lattice, smart=SMART_REPAIR):
                     for y in range(s):
                         prio_matrix[i][j] += transformed_matrix[(i - x) % (m - r + 1)][(j - y) % (n - s + 1)]
         idx = np.argmax(prio_matrix)
+        next_repair = (idx // m, idx % n)
+        if lattice[next_repair[0]][next_repair[1]].get_online():
+            next_repair = (-1, -1)
     else:
-        idx = np.argmax((transformed_matrix == 0))
-    return np.any(transformed_matrix == (r * s)), (idx // m, idx % n)
+        found = False
+        for i in range(m):
+            for j in range(n):
+                if not lattice[i][j].get_online():
+                    next_repair = (i, j)
+                    found = True
+                if found:
+                    break
+            if found:
+                break
+        if not found:
+            next_repair = (-1, -1)
+    return np.any(transformed_matrix == (r * s)), next_repair
 
 
 def simulate(m, n, r, s, end, lam, mu, smart=SMART_REPAIR):
@@ -111,7 +124,7 @@ def simulate(m, n, r, s, end, lam, mu, smart=SMART_REPAIR):
             repair_costs += cr
         # Check system status and update counters
         system_status, (x, y) = get_system_status(r, s, lattice, smart)
-        if not repairing:
+        if not repairing and x != -1:
             lattice[x][y].repair(next_time)
             event_queue.put((lattice[x][y].get_time(), False, (x, y)))
             repairing = True
@@ -155,9 +168,11 @@ def main():
     MTBF = []
     avg_r = []
     avg_m = []
+    m = 50
+    r = 7
     # 10000 simulation runs
     for i in range(config['runs']):
-        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(5, 5, 2, 2, end, config['lam'], config['mu'], smart=SMART_REPAIR)
+        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(m, m, r, r, end, config['lam'], config['mu'], smart=SMART_REPAIR)
         reliability.append(downtime)
         MTTF.append(TTF)
         MTBF.append(TBF)
