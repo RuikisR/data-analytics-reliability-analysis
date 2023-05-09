@@ -6,6 +6,8 @@ import importlib
 import sys
 import os
 
+SMART_REPAIR = True
+
 
 class Node:
     def __init__(self, lam=10, mu=10):
@@ -23,40 +25,52 @@ class Node:
         else:
             self.__status = False
             self.__next_event = current_time + np.random.exponential(self.__mu)
+           
+    def enable(self, current_time):
+        self.__status = True
+        self.__next_event = current_time + np.random.exponential(self.__lam)
+    
+    def disable(self):
+        self.__status = False
+     
+    def repair(self, current_time):
+        self.__next_event = current_time + np.random.exponential(self.__mu)
 
-    def getStatus(self):
+    def get_online(self):
         return self.__status
 
-    def getNext(self):
+    def get_time(self):
         return self.__next_event
 
 
-def get_system_status(r, s, lattice):
+def get_system_status(r, s, lattice, smart=SMART_REPAIR):
     m = len(lattice)
     n = len(lattice[0])
     # Building transformed matrix
-    transformed_matrix = []
+    transformed_matrix = np.zeros((m - r + 1, n - s + 1))
     flag = 0
-    for i in range(m):
-        transformed_row = []
-        for j in range(n + s - 1):
+    for i in range(len(transformed_matrix)):
+        for j in range(len(transformed_matrix[0])):
             # Scan the lattice for dangerous rows, hopping over columns' end
-            if not lattice[i % m][j % n].getStatus():
-                flag += 1
-                if flag == s:
-                    transformed_row.append((j - s + 1) % n)
-                    flag -= 1
-            else:
-                flag = 0
-        transformed_matrix.append(transformed_row)
+            for x in range(r):
+                for y in range(s):
+                    if not lattice[(i + x) % m][(j + y) % n].get_online():
+                        transformed_matrix[i][j] += 1
     # Scan transformed matrix to see if it's broken, hopping over rows' end
-    for row in range(m + r - 1):
-        if set(transformed_matrix[row % m]) & set(transformed_matrix[(row + 1) % m]):
-            return 0
-    return 1
+    if smart:
+        prio_matrix = np.zeros((m, n))
+        for i in range(m):
+            for j in range(n):
+                for x in range(r):
+                    for y in range(s):
+                        prio_matrix[i][j] += transformed_matrix[(i - x) % (m - r + 1)][(j - y) % (n - s + 1)]
+        idx = np.argmax(prio_matrix)
+    else:
+        idx = np.argmax((transformed_matrix == 0))
+    return np.any(transformed_matrix == (r * s)), (idx // m, idx % n)
 
 
-def simulate(m, n, r, s, end, lam, mu):
+def simulate(m, n, r, s, end, lam, mu, smart=SMART_REPAIR):
     # Cost parameters
     cr = 0.5
     cm = 0.25
@@ -69,6 +83,7 @@ def simulate(m, n, r, s, end, lam, mu):
     total_downtime = 0
     repair_costs = 0
     maintenance_costs = 0
+    repairing = False
     # Initiate queue of failures and repairs
     event_queue = PriorityQueue()
     # Create latice and fill with nodes, record planned failures
@@ -76,24 +91,30 @@ def simulate(m, n, r, s, end, lam, mu):
     for i in range(m):
         for j in range(n):
             lattice[i][j] = Node()
-            event_queue.put((lattice[i][j].getNext(), True, m * i + j))
-            maintenance_costs += round(cm * lattice[i][j].getNext(), 6)
+            event_queue.put((lattice[i][j].get_time(), True, (i, j)))
+            maintenance_costs += round(cm * lattice[i][j].get_time(), 6)
     # Simulation
     while t < end:
         # Get features of next event
-        next_time, next_status, next_node = event_queue.get()
-        i = next_node // m
-        j = next_node % n
+        next_time, next_status, (i, j) = event_queue.get()
         # Update node and event queue (making event happen)
-        lattice[i][j].update(not next_status, next_time)
-        event_queue.put((lattice[i][j].getNext(), lattice[i][j].getStatus(), m * i + j))
+        if next_status:
+            lattice[i][j].disable()
+        else:
+            lattice[i][j].enable(next_time)
+            event_queue.put((lattice[i][j].get_time(), True, (i, j)))
+            repairing = False
         # Update costs depending on node event
-        if lattice[i][j].getStatus():
-            maintenance_costs += round(cm * lattice[i][j].getNext(), 6)
+        if lattice[i][j].get_online():
+            maintenance_costs += round(cm * lattice[i][j].get_time(), 6)
         else:
             repair_costs += cr
         # Check system status and update counters
-        system_status = check_system(r, s, lattice)
+        system_status, (x, y) = get_system_status(r, s, lattice, smart)
+        if not repairing:
+            lattice[x][y].repair(next_time)
+            event_queue.put((lattice[x][y].get_time(), False, (x, y)))
+            repairing = True
         if system_status == 0 and TTF == end:
             TTF = next_time
         if system_status == 0:
@@ -136,7 +157,7 @@ def main():
     avg_m = []
     # 10000 simulation runs
     for i in range(config['runs']):
-        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(3, 3, 2, 2, end, config['lam'], config['mu'])
+        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(5, 5, 2, 2, end, config['lam'], config['mu'], smart=SMART_REPAIR)
         reliability.append(downtime)
         MTTF.append(TTF)
         MTBF.append(TBF)
