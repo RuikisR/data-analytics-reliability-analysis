@@ -129,7 +129,7 @@ def main():
     with open("span.yaml", 'r') as f:
         config = yaml.safe_load(f)
     print(config)
-    END = [400, 300, 200, 100, 50]
+    END = [500, 450, 400, 350, 300, 250, 200, 150, 100, 50]
     total_breakeven_profit = []
     total_reliability = []
     total_MTTF = []
@@ -179,22 +179,22 @@ def main():
         for module in batch['extension_modules']:
             del sys.modules[module]
     plot1 = plt.plot(END, total_breakeven_profit)
-    plt.xlabel('#time'); plt.ylabel('breakeven_profit')
+    plt.xlabel('System Time Span'); plt.ylabel('breakeven_profit')
     plt.show()
     plot2 = plt.plot(END, total_reliability)
-    plt.xlabel('#time'); plt.ylabel('reliability')
+    plt.xlabel('System Time Span'); plt.ylabel('reliability')
     plt.show()
     plot3 = plt.plot(END, total_MTTF)
-    plt.xlabel('#time'); plt.ylabel('MTTF')
+    plt.xlabel('System Time Span'); plt.ylabel('MTTF')
     plt.show()
     plot4 = plt.plot(END, total_MTBF)
-    plt.xlabel('#time'); plt.ylabel('MTBF')
+    plt.xlabel('System Time Span'); plt.ylabel('MTBF')
     plt.show()
     plot5 = plt.plot(END, total_avg_r)
-    plt.xlabel('#time'); plt.ylabel('avg_r')
+    plt.xlabel('System Time Span'); plt.ylabel('avg_r')
     plt.show()
     plot6 = plt.plot(END, total_avg_m)
-    plt.xlabel('#time'); plt.ylabel('avg_m')
+    plt.xlabel('System Time Span'); plt.ylabel('avg_m')
     plt.show()
 
 if __name__ == "__main__":
