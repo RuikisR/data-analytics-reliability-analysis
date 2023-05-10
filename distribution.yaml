@@ -1,0 +1,13 @@
+batch_template:
+    extension_modules:
+        - template_extension
+    lam: 15
+    mu: 15
+    end: 50
+    runs: 100
+batch_default:
+    extension_modules: []
+    lam: 10
+    mu: 10
+    end: 50
+    runs: 100
