@@ -6,7 +6,7 @@ import importlib
 import sys
 import os
 import matplotlib.pyplot as plt
-
+import csv
 class Node:
     def __init__(self, lam= 10, mu=10):
         # Uptime rate (lam) and downtime rate (mu); they give average periods until event
@@ -51,8 +51,12 @@ def check_system(r, s, lattice):
         transformed_matrix.append(transformed_row)
     # Scan transformed matrix to see if it's broken, hopping over rows' end
     for row in range(m + r - 1):
-        if set(transformed_matrix[row % m]) & set(transformed_matrix[(row + 1) % m]):
-            return 0
+        #Build intersection of the r rows
+        init_set = set(transformed_matrix[row % m])
+        for more in range(r):
+            init_set = init_set & set(transformed_matrix[(row + more) % m])
+        if (init_set):
+                return 0
     return 1
 
 
@@ -125,34 +129,24 @@ def simulate(m, n, r, s, end, lam, mu):
 
 
 def main():
-    # Load Simulation Settings
-    with open("span.yaml", 'r') as f:
-        config = yaml.safe_load(f)
-    print(config)
-    END = [500, 450, 400, 350, 300, 250, 200, 150, 100, 50]
+    END = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300]
     total_breakeven_profit = []
     total_reliability = []
     total_MTTF = []
     total_MTBF = []
     total_avg_r = []
     total_avg_m = []
-    for i, (batch_name, batch) in enumerate(config.items()):
-        print(f"Simulating Batch {i + 1} of {len(config)} - {batch_name}")
-        for module_name in batch['extension_modules']:
-            spec = importlib.util.spec_from_file_location(module_name, os.path.join("reliability_analysis", "extensions", module_name, module_name+".py"))
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-        # Number of periods to simulate and metrics
-        end = batch['end']
+    for i in range(len(END)):
+        end = END[i]
         reliability = []
         MTTF = []
         MTBF = []
         avg_r = []
         avg_m = []
+        print("END = %d" %end)
         # 10000 simulation runs
-        for i in range(batch['runs']):
-            downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(6, 6, 3, 3, end, batch['lam'], batch['mu'])
+        for j in range(100):
+            downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(6, 6, 3, 3, end, 5, 2)
             reliability.append(downtime)
             MTTF.append(TTF)
             MTBF.append(TBF)
@@ -176,8 +170,14 @@ def main():
         print(MTBF)
         print(avg_r)
         print(avg_m)
-        for module in batch['extension_modules']:
-            del sys.modules[module]
+
+
+    with open('reliability_analysis/extensions/diffSpan/output.csv', mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["lifetime","breakeven profit","reliability","MTTF","MTBF","avg_r","avg_m"])
+        for i in range(len(END)):
+            writer.writerow([END[i],total_breakeven_profit[i],total_reliability[i],total_MTTF[i],total_MTBF[i],total_avg_r[i],total_avg_m[i]])
+
             
     plot1 = plt.plot(END, total_breakeven_profit)
     plt.xlabel('System Time Span'); plt.ylabel('breakeven_profit')
