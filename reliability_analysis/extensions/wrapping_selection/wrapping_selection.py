@@ -21,26 +21,59 @@ def plot_3d(x, y, z, xlabel, ylabel, zlabel, title, label, ax):
 def check_system(r, s, lattice, wrap=False):
     m = len(lattice)
     n = len(lattice[0])
-    # Building transformed matrix
-    transformed_matrix = []
-    flag = 0
-    for i in range(m):
-        transformed_row = []
-        for j in range(n + s - 1):
-            # Scan the lattice for dangerous rows, hopping over columns' end if wrap is True
-            if not lattice[i % m][j % (n if wrap else n - 1)].getStatus():
-                flag += 1
-                if flag == s:
-                    transformed_row.append((j - s + 1) % n)
-                    flag -= 1
-            else:
-                flag = 0
-        transformed_matrix.append(transformed_row)
-    # Scan transformed matrix to see if it's broken, hopping over rows' end if wrap is True
-    for row in range(m + r - 1):
-        if set(transformed_matrix[row % m]) & set(transformed_matrix[(row + 1) % (m if wrap else m - 1)]):
-            return 0
-    return 1
+
+    if wrap == True:
+        # Building transformed matrix
+        transformed_matrix = []
+        flag = 0
+        for i in range(m):
+            transformed_row = []
+            for j in range(n + s - 1):
+                # Scan the lattice for dangerous rows, hopping over columns' end
+                if not lattice[i % m][j % n].getStatus():
+                    flag += 1
+                    if flag == s:
+                        transformed_row.append((j - s + 1) % n)
+                        flag -= 1
+                else:
+                    flag = 0
+            transformed_matrix.append(transformed_row)
+        # Scan transformed matrix to see if it's broken, hopping over rows' end
+        for row in range(m + r - 1):
+            # Build intersection of the r rows
+            init_set = set(transformed_matrix[row % m])
+            for more in range(r):
+                init_set = init_set & set(transformed_matrix[(row + more) % m])
+            if (init_set):
+                return 0
+        return 1
+    
+    else:
+        # Building transformed matrix
+        transformed_matrix = []
+        flag = 0
+        for i in range(m):
+            transformed_row = []
+            for j in range(n - s + 1):
+                # Scan the lattice for dangerous rows
+                if not lattice[i][j].getStatus():
+                    flag += 1
+                    if flag == s:
+                        transformed_row.append(j - s + 1)
+                        flag -= 1
+                else:
+                    flag = 0
+            transformed_matrix.append(transformed_row)
+
+        # Scan transformed matrix to see if it's broken
+        for row in range(m - r + 1):
+            # Build intersection of the r rows
+            init_set = set(transformed_matrix[row])
+            for more in range(1, r):
+                init_set = init_set & set(transformed_matrix[row + more])
+            if init_set:
+                return 0
+        return 1
 
 
 def simulate(m, n, r, s, end, lam, mu, wrap):
