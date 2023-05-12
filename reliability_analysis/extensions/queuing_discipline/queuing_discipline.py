@@ -5,6 +5,7 @@ import yaml
 import importlib
 import sys
 import os
+import pandas as pd
 
 SMART_REPAIR = False
 
@@ -17,22 +18,13 @@ class Node:
         self.__lam = lam
         self.__mu = mu
 
-    def update(self, event, current_time):
-        # Boolean event decides if uptime or downtime computed; setter for status and next event
-        if event:
-            self.__status = True
-            self.__next_event = current_time + np.random.exponential(self.__lam)
-        else:
-            self.__status = False
-            self.__next_event = current_time + np.random.exponential(self.__mu)
-           
     def enable(self, current_time):
         self.__status = True
         self.__next_event = current_time + np.random.exponential(self.__lam)
-    
+
     def disable(self):
         self.__status = False
-     
+
     def repair(self, current_time):
         self.__next_event = current_time + np.random.exponential(self.__mu)
 
@@ -60,9 +52,10 @@ def get_system_status(r, s, lattice, smart=SMART_REPAIR):
         prio_matrix = np.zeros((m, n))
         for i in range(m):
             for j in range(n):
-                for x in range(r):
-                    for y in range(s):
-                        prio_matrix[i][j] += transformed_matrix[(i - x) % (m - r + 1)][(j - y) % (n - s + 1)]
+                if not lattice[i][j].get_online():
+                    for x in range(r):
+                        for y in range(s):
+                            prio_matrix[i][j] += transformed_matrix[(i - x) % (m - r + 1)][(j - y) % (n - s + 1)]
         idx = np.argmax(prio_matrix)
         next_repair = (idx // m, idx % n)
         if lattice[next_repair[0]][next_repair[1]].get_online():
@@ -89,8 +82,9 @@ def simulate(m, n, r, s, end, lam, mu, smart=SMART_REPAIR):
     cm = 0.25
     # Initiate clock, counters, and a false failure indicator
     t = 0
-    fail_flag = 0
-    TTF = end
+    fail_flag = False
+    TTF = 0
+    TTF_history = []
     TBF = 0
     TBF_history = []
     total_downtime = 0
@@ -128,30 +122,38 @@ def simulate(m, n, r, s, end, lam, mu, smart=SMART_REPAIR):
             lattice[x][y].repair(next_time)
             event_queue.put((lattice[x][y].get_time(), False, (x, y)))
             repairing = True
-        if system_status == 0 and TTF == end:
-            TTF = next_time
-        if system_status == 0:
+
+        if system_status:
             if fail_flag:
+                fail_flag = False
+                TTF = 0
                 total_downtime += next_time - t
-            else:
                 TBF += next_time - t
-                TBF_history.append(TBF)
-                fail_flag = 1
-                TBF = 0
+            else:
+                TTF += next_time - t
+                TBF += next_time - t
         else:
             if fail_flag:
                 total_downtime += next_time - t
-                fail_flag = 0
-            else:
                 TBF += next_time - t
+            else:
+                fail_flag = True
+                TBF += next_time - t
+                TBF_history.append(TBF)
+                TBF = 0
+                TTF += next_time - t
+                TTF_history.append(TTF)
         # Advance clock
         t = min(next_time, end)
     # If the system never failed, TBF and TTF are set to the simulated time span
+
     if not TBF_history:
         TBF_history.append(end)
+    if not TTF_history:
+        TTF_history.append(end)
     return (
         total_downtime / end,
-        TTF,
+        np.mean(TTF_history),
         np.mean(TBF_history),
         repair_costs,
         maintenance_costs,
@@ -163,33 +165,39 @@ def main():
     with open("qd.yaml", 'r') as f:
         config = yaml.safe_load(f)
     end = config['end']
-    reliability = []
-    MTTF = []
-    MTBF = []
-    avg_r = []
-    avg_m = []
-    m = 50
-    r = 7
-    # 10000 simulation runs
-    for i in range(config['runs']):
-        downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(m, m, r, r, end, config['lam'], config['mu'], smart=SMART_REPAIR)
-        reliability.append(downtime)
-        MTTF.append(TTF)
-        MTBF.append(TBF)
-        avg_r.append(repair_costs)
-        avg_m.append(maintenance_costs)
-    reliability = 1 - np.mean(reliability)
-    MTTF = np.mean(MTTF)
-    MTBF = np.mean(MTBF)
-    avg_r = round(np.mean(avg_r), 6)
-    avg_m = round(np.mean(avg_m), 6)
-    breakeven_profit = round((avg_r + avg_m) / (reliability * end), 6)
-    print(breakeven_profit)
-    print(reliability)
-    print(MTTF)
-    print(MTBF)
-    print(avg_r)
-    print(avg_m)
+    df = pd.DataFrame(columns=["SMART", "R", "M", "BE_PROFIT", "RELIABILITY", "MTTF", "MTBF", "AVG_R", "AVG_M"])
+    for smart in [True, False]:
+        for r in [2, 3, 4]:
+            for m in [5, 10, 15, 30, 50]:
+                reliability = []
+                MTTF = []
+                MTBF = []
+                avg_r = []
+                avg_m = []
+                # m = 10
+                # r = 2
+                # 10000 simulation runs
+                for i in range(config['runs']):
+                    downtime, TTF, TBF, repair_costs, maintenance_costs = simulate(m, m, r, r, end, config['lam'], config['mu'], smart=smart)
+                    reliability.append(downtime)
+                    MTTF.append(TTF)
+                    MTBF.append(TBF)
+                    avg_r.append(repair_costs)
+                    avg_m.append(maintenance_costs)
+                reliability = 1 - np.mean(reliability)
+                MTTF = np.mean(MTTF)
+                MTBF = np.mean(MTBF)
+                avg_r = round(np.mean(avg_r), 6)
+                avg_m = round(np.mean(avg_m), 6)
+                breakeven_profit = round((avg_r + avg_m) / (reliability * end), 6)
+                # print(breakeven_profit)
+                # print(reliability)
+                # print(MTTF)
+                # print(MTBF)
+                # print(avg_r)
+                # print(avg_m)
+                df.loc[len(df.index)] = [smart, r, m, breakeven_profit, reliability, MTTF, MTBF, avg_r, avg_m]
+    df.to_csv("qd_data.csv", index=False)
 
 
 if __name__ == "__main__":
